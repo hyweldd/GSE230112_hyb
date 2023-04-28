@@ -1,0 +1,78 @@
+# ______________________________________________________________________________
+#
+#     ezh2_flash_hyb_analysis_pipeline.def
+#     Copyright (C) 2023  Hywel.Dunn-Davies@ed.ac.uk
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# ______________________________________________________________________________
+
+# Singularity definition file used to generate the container containing the 
+# dependencies for the Snakefile.
+
+Bootstrap: docker
+From: biocontainers/biocontainers:v1.2.0_cv2
+Stage: build
+
+%environment
+    export LC_ALL=C
+
+%files
+    ../ref/meg3_hyb_db /opt/
+
+%post -c /bin/bash
+
+    # install conda packages
+    conda config --add channels bioconda
+    conda config --append channels conda-forge
+    conda create -n pipeline \
+        python=3.7.16 \
+        bowtie2=2.3.5 \
+        blat=35 \
+        oligoarrayaux=3.8 \
+        flexbar=2.5.0 \
+        fastqc=0.12.1 \
+        cutadapt=1.18
+
+    # install pyCRAC
+    source activate pipeline
+    pip install -I pyCRAC==1.5.2
+
+    # download and install hyb
+    wget -P /root/ -nc https://github.com/gkudla/hyb/archive/6fa34eb46b1414f8c4fbb30ae1aa3f3eed52ddc9.zip
+    unzip /root/6fa34eb46b1414f8c4fbb30ae1aa3f3eed52ddc9.zip -d /usr/local/
+    mv /usr/local/hyb-6fa34eb46b1414f8c4fbb30ae1aa3f3eed52ddc9 /usr/local/hyb
+
+    # move the hyb database to the correct location
+    rm -r /usr/local/hyb/data/db
+    mv /opt/meg3_hyb_db /usr/local/hyb/data/db
+
+    # add the necessary bin directories to the path
+    echo "export PATH=/usr/local/hyb/bin:/opt/conda/envs/pipeline/bin:$PATH" >> $SINGULARITY_ENVIRONMENT
+
+%test
+    echo "bowtie2 ----"
+    bowtie2 --version
+    echo "blat ----"
+    blat
+    echo "flexbar ----"
+    flexbar --version
+    echo "fastqc ----"
+    fastqc --version
+    echo "cutadapt ----"
+    cutadapt --version
+    echo "hyb ----"
+    hyb help
+    echo "pyFastqDuplicateRemover.py ----"
+    pyFastqDuplicateRemover.py --version
